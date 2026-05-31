@@ -1,0 +1,7 @@
+project_07_capstone_production_rag.txt
+
+.env
+__pycache__/
+*.pyc
+chroma_db/
+data/
