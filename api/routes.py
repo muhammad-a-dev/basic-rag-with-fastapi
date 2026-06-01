@@ -1,11 +1,18 @@
+
 from fastapi import APIRouter, File, UploadFile, HTTPException
 import os
 from rag.ingestion import load_document, chunk_document, embedding_model
+from rag.retriever import query_retriever, generate_augmented_prompt, response_generator, llm_model
+from api.schemas import QueryRequest
 from langchain_community.vectorstores import Chroma
 
 
 
+
+
 router = APIRouter()
+chat_history = {}
+
 
 
 @router.post("/ingest")
@@ -45,19 +52,40 @@ async def ingest(file: UploadFile = File(...)):
     vectorstore.add_documents(chunks)
 
 
-
-
-
-
-
-
-
     return {"status": "success", "chunks_stored": len(chunks)}
 
 
 
-@router.get("/query")
-def query():
-    return {"message": "Query endpoint"}
+@router.post("/query")
+def query(request: QueryRequest):
+    question = request.question
+    session_id = request.session_id
+
+    if session_id not in chat_history:
+        chat_history[session_id] = []
+
+
+
+
+    vectorstore = Chroma(persist_directory="chroma_db", embedding_function=embedding_model())
+    response = query_retriever(vectorstore, question)
+    sources = list(set([doc.metadata['source'].replace("temp\\", "") for doc in response]))
+
+
+
+    augmented_prompt = generate_augmented_prompt(response, question, history=chat_history[session_id])
+    print(augmented_prompt)
+    ai_response = response_generator(model=llm_model(), augmented_prompt=augmented_prompt)
+    chat_history[session_id].append({"user": question, "ai": ai_response})
+
+
+
+    return {"response": ai_response, "sources": sources}
+
+
+
+
+
+
 
 
