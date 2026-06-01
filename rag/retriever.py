@@ -21,7 +21,11 @@ def query_retriever(vectorstore, question):
     :param question:
     :return:
     """
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+    retriever = vectorstore.as_retriever(
+        search_type="similarity_score_threshold",
+        search_kwargs={"k": 3,
+                       "score_threshold": 0.5
+                       })
     docs = retriever.invoke(question)
     return docs
 
