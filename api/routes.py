@@ -1,5 +1,6 @@
 
 from fastapi import APIRouter, File, UploadFile, HTTPException
+from fastapi.responses import StreamingResponse
 import os
 from rag.ingestion import load_document, chunk_document, embedding_model
 from rag.retriever import query_retriever, generate_augmented_prompt, response_generator, llm_model
@@ -61,26 +62,50 @@ def query(request: QueryRequest):
     question = request.question
     session_id = request.session_id
 
+    if len(question) == 0 or len(question) > 500:
+        raise HTTPException(status_code=400, detail="Question must be between 1 and 500 characters long.")
+
+
+
+
     if session_id not in chat_history:
         chat_history[session_id] = []
 
 
 
 
+
+
     vectorstore = Chroma(persist_directory="chroma_db", embedding_function=embedding_model())
     response = query_retriever(vectorstore, question)
+
+    if not response:
+        return {"response": "No relevant documents found to answer the question.", "sources": []}
+
+
+    print("response from retriever: ", response)
     sources = list(set([doc.metadata['source'].replace("temp\\", "") for doc in response]))
+
 
 
 
     augmented_prompt = generate_augmented_prompt(response, question, history=chat_history[session_id])
     print(augmented_prompt)
-    ai_response = response_generator(model=llm_model(), augmented_prompt=augmented_prompt)
-    chat_history[session_id].append({"user": question, "ai": ai_response})
+
+    def stream_and_save_response():
+        collected_response = ""
+
+        for chunk in response_generator(model=llm_model(), augmented_prompt=augmented_prompt):
+            yield chunk
+            collected_response += chunk
+
+        chat_history[session_id].append({"user": question, "ai": collected_response})
+
+
+    return StreamingResponse(stream_and_save_response(), media_type="text/plain", headers={"X-Sources": ", ".join(sources)})
 
 
 
-    return {"response": ai_response, "sources": sources}
 
 
 
