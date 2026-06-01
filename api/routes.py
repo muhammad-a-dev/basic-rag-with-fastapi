@@ -3,7 +3,7 @@ from fastapi import APIRouter, File, UploadFile, HTTPException
 from fastapi.responses import StreamingResponse
 import os
 from rag.ingestion import load_document, chunk_document, embedding_model
-from rag.retriever import query_retriever, generate_augmented_prompt, response_generator, llm_model
+from rag.retriever import query_retriever, generate_augmented_prompt, response_generator, llm_model, vectorstore_initializer
 from api.schemas import QueryRequest
 from langchain_community.vectorstores import Chroma
 
@@ -76,7 +76,7 @@ def query(request: QueryRequest):
 
 
 
-    vectorstore = Chroma(persist_directory="chroma_db", embedding_function=embedding_model())
+    vectorstore = vectorstore_initializer(embedding_model())
     response = query_retriever(vectorstore, question)
 
     if not response:
