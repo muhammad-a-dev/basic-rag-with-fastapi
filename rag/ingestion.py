@@ -4,6 +4,8 @@ from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from dotenv import load_dotenv
 import os
 from rag.config import *
+import logging
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY")
@@ -24,9 +26,12 @@ def load_document(file_path):
     elif ext == ".txt":
         loader = TextLoader(file_path)
     else:
+        logger.error("Unsupported file type")
         raise ValueError("Unsupported file type. Only PDF and TXT are allowed.")
 
-    return loader.load()
+    doc_load = loader.load()
+    logger.info(f"Loaded {file_path}")
+    return doc_load
 
 
 def chunk_document(document):
@@ -39,6 +44,8 @@ def chunk_document(document):
     chunk size and overlap parameters.
     """
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+    logger.info(f"Splitting {len(document)} pages into chunks")
+
     return text_splitter.split_documents(document)
 
 
