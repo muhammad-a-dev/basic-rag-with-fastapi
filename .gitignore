@@ -1,8 +1,33 @@
-project_07_capstone_production_rag.txt
-
+# Secrets and local env
 .env
+.env.local
+*.pem
+
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+
+# Tooling / coverage
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# App runtime data
 chroma_db/
 data/
 temp/
+*.log
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
