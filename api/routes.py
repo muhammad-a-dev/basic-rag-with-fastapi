@@ -69,7 +69,7 @@ async def ingest(file: UploadFile = File(...)) -> IngestResponse:
     return IngestResponse(status="success", chunks_stored=len(chunks), filename=safe_name)
 
 
-@router.post("/query")
+@router.post("/query", response_model=None)
 def query(request: QueryRequest) -> StreamingResponse | EmptyRetrievalResponse:
     """Retrieve context and stream a grounded answer for the question."""
     settings = get_settings()
