@@ -129,6 +129,18 @@ curl -N -X POST "http://127.0.0.1:8000/api/query" \
 
 Successful retrieval streams tokens and includes an `X-Sources` response header. If nothing relevant is found, the API returns JSON explaining that no documents matched.
 
+### Run with Docker
+
+```bash
+docker build -t basic-rag-api .
+docker run --rm -p 8000:8000 \
+  -e HUGGINGFACE_API_KEY \
+  -e GROQ_API_KEY \
+  basic-rag-api
+```
+
+The image runs `uvicorn api.main:app` on port `8000` as a non-root user and health-checks `/health`. Persist Chroma/uploads by mounting a volume on `/app/data` if needed.
+
 ## Project structure
 
 ```text
@@ -147,6 +159,8 @@ Successful retrieval streams tokens and includes an `X-Sources` response header.
 │   └── evaluate.ipynb   # exploratory notebook
 ├── tests/               # unit tests (mocked providers)
 ├── .github/workflows/ci.yml
+├── Dockerfile
+├── .dockerignore
 ├── pyproject.toml
 ├── .env.example
 ├── LICENSE
@@ -178,7 +192,7 @@ See [SECURITY.md](SECURITY.md) for reporting guidance.
 - Persistent session / chat history store
 - Authentication and per-user document isolation
 - Stronger content safety / prompt-injection defenses
-- Docker Compose deployment profile
+- Docker Compose multi-service profile (image already ships via `Dockerfile`)
 - Broader evaluation set and regression harness wired to CI (with mocks or fixtures)
 
 ## License
