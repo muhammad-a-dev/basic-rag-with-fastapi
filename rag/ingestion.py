@@ -1,75 +1,78 @@
-from langchain_community.document_loaders import PyPDFLoader, TextLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEndpointEmbeddings
-from dotenv import load_dotenv
-import os
-from rag.config import *
+"""Document loading, chunking, and embedding model factory."""
+
+from __future__ import annotations
+
 import logging
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from langchain_community.document_loaders import PyPDFLoader, TextLoader
+from langchain_huggingface import HuggingFaceEndpointEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+from rag.config import Settings, get_settings
+
+if TYPE_CHECKING:
+    from langchain_core.documents import Document
+
 logger = logging.getLogger(__name__)
 
-load_dotenv()
-HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY")
+ALLOWED_EXTENSIONS = {".pdf", ".txt"}
 
 
+def get_file_extension(filename: str) -> str:
+    """Return the lowercase file extension including the leading dot."""
+    return Path(filename).suffix.lower()
 
 
-def load_document(file_path):
-    """
-    This function loads a document from the specified file path. It supports both PDF and TXT files.
-    The function determines the file type based on the file extension and uses the appropriate loader to read the content.
-    :param file_path: The path to the document file (PDF or TXT) that needs to be loaded.
-    :return: A list of documents loaded from the file, where each document is represented as a dictionary with keys like 'page_content' and 'metadata'.
-    """
-    ext = os.path.splitext(file_path)[1].lower()
+def is_allowed_upload(filename: str | None) -> bool:
+    """Return True when the upload filename has an allowed extension."""
+    if not filename:
+        return False
+    return get_file_extension(filename) in ALLOWED_EXTENSIONS
+
+
+def load_document(file_path: str | Path) -> list[Document]:
+    """Load a PDF or TXT file into LangChain documents."""
+    path = Path(file_path)
+    ext = path.suffix.lower()
+
     if ext == ".pdf":
-        loader = PyPDFLoader(file_path)
+        loader = PyPDFLoader(str(path))
     elif ext == ".txt":
-        loader = TextLoader(file_path)
+        loader = TextLoader(str(path), encoding="utf-8")
     else:
-        logger.error("Unsupported file type")
+        logger.error("Unsupported file type: %s", ext)
         raise ValueError("Unsupported file type. Only PDF and TXT are allowed.")
 
-    doc_load = loader.load()
-    logger.info(f"Loaded {file_path}")
-    return doc_load
+    documents = loader.load()
+    logger.info("Loaded document %s (%s pages/parts)", path.name, len(documents))
+    return documents
 
 
-def chunk_document(document):
-    """
-    This function takes a document as input and splits it into smaller chunks using the RecursiveCharacterTextSplitter.
-    :param document: A document that needs to be split into smaller chunks.
-     The document is typically a dictionary containing keys like 'page_content' and 'metadata'.
-    :return: A list of text chunks obtained from splitting the input document.
-    Each chunk is a smaller portion of the original document's content, and the splitting is done based on the specified
-    chunk size and overlap parameters.
-    """
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-    logger.info(f"Splitting {len(document)} pages into chunks")
-
-    return text_splitter.split_documents(document)
-
-
-def embedding_model():
-    """
-    This function initializes and returns an instance of the HuggingFaceEndpointEmbeddings class, which is used to create embeddings for text data.
-    :return: An instance of the HuggingFaceEndpointEmbeddings class, configured
-    """
-    embeddings = HuggingFaceEndpointEmbeddings(
-        model=EMBEDDING_MODEL_NAME,
-        huggingfacehub_api_token=HUGGINGFACE_API_KEY,
+def chunk_document(
+    document: list[Document],
+    *,
+    settings: Settings | None = None,
+) -> list[Document]:
+    """Split documents into overlapping character chunks."""
+    cfg = settings or get_settings()
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=cfg.chunk_size,
+        chunk_overlap=cfg.chunk_overlap,
     )
-    return embeddings
+    chunks = splitter.split_documents(document)
+    logger.info("Split into %s chunks", len(chunks))
+    return chunks
 
 
-
-
-
-
-
-"""
-load
-chunk
-embed
-store
-query
-"""
+def embedding_model(
+    *,
+    settings: Settings | None = None,
+) -> HuggingFaceEndpointEmbeddings:
+    """Create the Hugging Face endpoint embedding client."""
+    cfg = settings or get_settings()
+    return HuggingFaceEndpointEmbeddings(
+        model=cfg.embedding_model_name,
+        huggingfacehub_api_token=cfg.huggingface_api_key or None,
+    )
