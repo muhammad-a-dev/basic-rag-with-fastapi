@@ -21,7 +21,8 @@ def test_is_allowed_upload() -> None:
 
 
 def test_normalize_source_label_uses_filename() -> None:
-    assert normalize_source_label(r"temp\\essay.pdf") == "essay.pdf"
+    windows_style = "temp" + chr(92) + "essay.pdf"
+    assert normalize_source_label(windows_style) == "essay.pdf"
     assert normalize_source_label("temp/essay.pdf") == "essay.pdf"
 
 
@@ -32,9 +33,10 @@ def test_normalize_source_label_relative_to_temp_dir(tmp_path: Path) -> None:
 
 
 def test_extract_sources_deduplicates() -> None:
+    windows_style = "temp" + chr(92) + "a.txt"
     docs = [
         Document(page_content="a", metadata={"source": "temp/a.txt"}),
-        Document(page_content="b", metadata={"source": r"temp\\a.txt"}),
+        Document(page_content="b", metadata={"source": windows_style}),
         Document(page_content="c", metadata={"source": "temp/b.txt"}),
     ]
     assert extract_sources(docs) == ["a.txt", "b.txt"]
