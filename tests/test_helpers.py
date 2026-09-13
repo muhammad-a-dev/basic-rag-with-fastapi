@@ -2,14 +2,21 @@
 
 from pathlib import Path
 
+import pytest
 from langchain_core.documents import Document
 
-from rag.ingestion import get_file_extension, is_allowed_upload
+from rag.config import Settings
+from rag.ingestion import chunk_document, get_file_extension, is_allowed_upload, load_document
 from rag.retriever import extract_sources, generate_augmented_prompt, normalize_source_label
 
 
 def test_get_file_extension_lowercases() -> None:
     assert get_file_extension("Report.PDF") == ".pdf"
+
+
+def test_get_file_extension_empty_when_missing() -> None:
+    assert get_file_extension("Makefile") == ""
+    assert get_file_extension("archive.tar.gz") == ".gz"
 
 
 def test_is_allowed_upload() -> None:
@@ -18,6 +25,21 @@ def test_is_allowed_upload() -> None:
     assert is_allowed_upload("image.png") is False
     assert is_allowed_upload(None) is False
     assert is_allowed_upload("") is False
+
+
+def test_load_document_rejects_unsupported_extension(tmp_path: Path) -> None:
+    bad = tmp_path / "notes.docx"
+    bad.write_text("not a supported upload", encoding="utf-8")
+    with pytest.raises(ValueError, match="Unsupported file type"):
+        load_document(bad)
+
+
+def test_chunk_document_splits_long_text() -> None:
+    settings = Settings(chunk_size=40, chunk_overlap=5)
+    docs = [Document(page_content=("alpha beta gamma delta " * 8).strip())]
+    chunks = chunk_document(docs, settings=settings)
+    assert len(chunks) >= 2
+    assert all(chunk.page_content for chunk in chunks)
 
 
 def test_normalize_source_label_uses_filename() -> None:
@@ -40,6 +62,14 @@ def test_extract_sources_deduplicates() -> None:
         Document(page_content="c", metadata={"source": "temp/b.txt"}),
     ]
     assert extract_sources(docs) == ["a.txt", "b.txt"]
+
+
+def test_extract_sources_unknown_when_source_missing() -> None:
+    docs = [
+        Document(page_content="orphan", metadata={}),
+        Document(page_content="also", metadata={"source": "temp/known.txt"}),
+    ]
+    assert extract_sources(docs) == ["unknown", "known.txt"]
 
 
 def test_generate_augmented_prompt_includes_docs_and_question() -> None:

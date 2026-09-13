@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Keep a Changelog file so release history is easy to find from the README.
 - Config unit tests for string-env coercion of chunk/retriever knobs and absolute Chroma path overrides.
+- Helper unit tests for unsupported upload rejection, chunk splitting, missing-source labels, and extension edge cases.
 
 ### Changed
 
