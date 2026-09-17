@@ -7,8 +7,9 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from api.main import create_app
-from api.routes import _safe_filename
+from api.routes import _MAX_SAFE_FILENAME_LEN, _safe_filename, _trim_chat_history
 from api.schemas import QueryRequest
+from rag.config import get_settings
 
 
 @pytest.fixture()
@@ -28,6 +29,29 @@ def test_safe_filename_sanitizes_special_chars_and_empty() -> None:
     assert _safe_filename("___") == "upload.bin"
 
 
+def test_safe_filename_truncates_long_names() -> None:
+    long_stem = "a" * (_MAX_SAFE_FILENAME_LEN + 40)
+    cleaned = _safe_filename(f"{long_stem}.txt")
+    assert len(cleaned) <= _MAX_SAFE_FILENAME_LEN
+    assert cleaned.endswith(".txt")
+
+
+def test_trim_chat_history_keeps_newest_turns() -> None:
+    history = [{"user": f"u{i}", "ai": f"a{i}"} for i in range(5)]
+    _trim_chat_history(history, max_turns=3)
+    assert history == [
+        {"user": "u2", "ai": "a2"},
+        {"user": "u3", "ai": "a3"},
+        {"user": "u4", "ai": "a4"},
+    ]
+
+
+def test_trim_chat_history_noop_when_under_limit() -> None:
+    history = [{"user": "u", "ai": "a"}]
+    _trim_chat_history(history, max_turns=5)
+    assert history == [{"user": "u", "ai": "a"}]
+
+
 def test_ingest_rejects_disallowed_extension(client: TestClient) -> None:
     response = client.post(
         "/api/ingest",
@@ -44,6 +68,31 @@ def test_ingest_rejects_png_upload(client: TestClient) -> None:
     )
     assert response.status_code == 400
     assert "Invalid file type" in response.json()["detail"]
+
+
+def test_ingest_rejects_empty_upload(client: TestClient) -> None:
+    response = client.post(
+        "/api/ingest",
+        files={"file": ("notes.txt", b"", "text/plain")},
+    )
+    assert response.status_code == 400
+    assert "Empty uploads" in response.json()["detail"]
+
+
+def test_ingest_rejects_oversized_upload(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    monkeypatch.setenv("MAX_UPLOAD_BYTES", "32")
+    monkeypatch.setenv("TEMP_UPLOAD_DIR", str(tmp_path))
+    get_settings.cache_clear()
+    try:
+        oversized = TestClient(create_app())
+        response = oversized.post(
+            "/api/ingest",
+            files={"file": ("notes.txt", b"x" * 64, "text/plain")},
+        )
+        assert response.status_code == 413
+        assert "maximum upload size" in response.json()["detail"]
+    finally:
+        get_settings.cache_clear()
 
 
 def test_query_rejects_empty_question_via_api(client: TestClient) -> None:

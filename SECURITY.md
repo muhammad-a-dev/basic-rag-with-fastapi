@@ -26,6 +26,12 @@ Email or privately message the repository owner (`muhammad-a-dev`) with:
 
 Uploaded documents and Chroma embeddings live under `TEMP_UPLOAD_DIR` and `CHROMA_PERSIST_DIRECTORY`. Treat those directories as sensitive if they hold private content — do not commit them, and avoid sharing volume dumps casually.
 
+## Upload and session bounds
+
+- Ingest rejects empty files and payloads larger than `MAX_UPLOAD_BYTES` (default 10 MiB) before writing to disk.
+- Uploaded filenames are sanitized and truncated to limit path traversal and oversized name abuse.
+- In-process chat history is capped by `MAX_CHAT_HISTORY_TURNS` (default 20 newest turns per session).
+
 ## Scope notes
 
 This service stores uploaded documents locally and keeps chat history in process memory. Do not deploy it to the public internet without authentication, rate limiting, and hardened storage.

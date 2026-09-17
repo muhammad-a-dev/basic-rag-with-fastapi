@@ -2,6 +2,9 @@
 
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
+
 from rag.config import Settings
 
 
@@ -29,8 +32,19 @@ def test_numeric_knobs_coerce_from_strings() -> None:
         chunk_overlap="75",
         retriever_k="5",
         retriever_score_threshold="0.35",
+        max_upload_bytes="2048",
+        max_chat_history_turns="8",
     )
     assert settings.chunk_size == 750
     assert settings.chunk_overlap == 75
     assert settings.retriever_k == 5
     assert settings.retriever_score_threshold == 0.35
+    assert settings.max_upload_bytes == 2048
+    assert settings.max_chat_history_turns == 8
+
+
+def test_upload_and_history_bounds_reject_zero() -> None:
+    with pytest.raises(ValidationError):
+        Settings(max_upload_bytes=0)
+    with pytest.raises(ValidationError):
+        Settings(max_chat_history_turns=0)

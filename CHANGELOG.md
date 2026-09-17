@@ -12,11 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Keep a Changelog file so release history is easy to find from the README.
 - Config unit tests for string-env coercion of chunk/retriever knobs and absolute Chroma path overrides.
 - Helper unit tests for unsupported upload rejection, chunk splitting, missing-source labels, and extension edge cases.
+- Upload size cap (`MAX_UPLOAD_BYTES`, default 10 MiB), empty-upload rejection, long filename truncation, and in-memory chat history trim (`MAX_CHAT_HISTORY_TURNS`).
 
 ### Changed
 
 - Clarified in the README that chat history is in-memory only and not multi-process safe.
 - Tightened secrets guidance in `SECURITY.md` and `.env.example` (empty keys in git, no key logging, treat local Chroma/upload dirs as sensitive).
+
+### Security
+
+- Reject empty and oversized ingest payloads before writing to disk; document upload/history bounds in `SECURITY.md`.
 
 ## [0.1.0] - 2026-09-04
 

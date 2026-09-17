@@ -42,6 +42,16 @@ class Settings(BaseSettings):
         default=0.5,
         alias="RETRIEVER_SCORE_THRESHOLD",
     )
+    max_upload_bytes: int = Field(
+        default=10_485_760,
+        alias="MAX_UPLOAD_BYTES",
+        ge=1,
+    )
+    max_chat_history_turns: int = Field(
+        default=20,
+        alias="MAX_CHAT_HISTORY_TURNS",
+        ge=1,
+    )
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     @property

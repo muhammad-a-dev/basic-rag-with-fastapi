@@ -21,13 +21,30 @@ router = APIRouter()
 chat_history: dict[str, list[dict[str, str]]] = {}
 
 _SAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
+_MAX_SAFE_FILENAME_LEN = 200
 
 
 def _safe_filename(filename: str) -> str:
     """Reduce path traversal risk for uploaded filenames."""
     name = Path(filename).name
     cleaned = _SAFE_FILENAME.sub("_", name).strip("._")
-    return cleaned or "upload.bin"
+    if not cleaned:
+        return "upload.bin"
+    if len(cleaned) > _MAX_SAFE_FILENAME_LEN:
+        suffix = Path(cleaned).suffix[:20]
+        stem_budget = _MAX_SAFE_FILENAME_LEN - len(suffix)
+        cleaned = f"{cleaned[:stem_budget]}{suffix}" if suffix else cleaned[:_MAX_SAFE_FILENAME_LEN]
+    return cleaned
+
+
+def _trim_chat_history(history: list[dict[str, str]], max_turns: int) -> None:
+    """Keep only the newest max_turns conversation turns in place."""
+    if max_turns < 1:
+        history.clear()
+        return
+    overflow = len(history) - max_turns
+    if overflow > 0:
+        del history[:overflow]
 
 
 @router.post("/ingest", response_model=IngestResponse)
@@ -42,18 +59,35 @@ async def ingest(file: UploadFile = File(...)) -> IngestResponse:
         )
 
     assert file.filename is not None
-    settings.temp_path.mkdir(parents=True, exist_ok=True)
     safe_name = _safe_filename(file.filename)
-    file_location = settings.temp_path / safe_name
 
     try:
         contents = await file.read()
+    except OSError as exc:
+        logger.exception("Failed to read upload")
+        raise HTTPException(status_code=500, detail=f"Failed to read file: {exc}") from exc
+    finally:
+        await file.close()
+
+    if not contents:
+        raise HTTPException(status_code=400, detail="Empty uploads are not allowed.")
+
+    if len(contents) > settings.max_upload_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"File exceeds maximum upload size of {settings.max_upload_bytes} bytes."
+            ),
+        )
+
+    settings.temp_path.mkdir(parents=True, exist_ok=True)
+    file_location = settings.temp_path / safe_name
+
+    try:
         file_location.write_bytes(contents)
     except OSError as exc:
         logger.exception("Failed to save upload")
         raise HTTPException(status_code=500, detail=f"Failed to save file: {exc}") from exc
-    finally:
-        await file.close()
 
     try:
         document = load_document(file_location)
@@ -101,6 +135,7 @@ def query(request: QueryRequest) -> StreamingResponse | EmptyRetrievalResponse:
             logger.exception("Streaming generation failed")
             raise
         history.append({"user": question, "ai": collected_response})
+        _trim_chat_history(history, settings.max_chat_history_turns)
 
     return StreamingResponse(
         stream_and_save_response(),
