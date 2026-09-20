@@ -27,7 +27,7 @@ def get_file_extension(filename: str) -> str:
 
 def is_allowed_upload(filename: str | None) -> bool:
     """Return True when the upload filename has an allowed extension."""
-    if not filename:
+    if not filename or "\x00" in filename:
         return False
     return get_file_extension(filename) in ALLOWED_EXTENSIONS
 

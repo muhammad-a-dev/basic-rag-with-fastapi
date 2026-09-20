@@ -52,6 +52,11 @@ class Settings(BaseSettings):
         alias="MAX_CHAT_HISTORY_TURNS",
         ge=1,
     )
+    max_chat_sessions: int = Field(
+        default=100,
+        alias="MAX_CHAT_SESSIONS",
+        ge=1,
+    )
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     @property

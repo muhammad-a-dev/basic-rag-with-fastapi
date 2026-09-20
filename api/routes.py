@@ -26,7 +26,8 @@ _MAX_SAFE_FILENAME_LEN = 200
 
 def _safe_filename(filename: str) -> str:
     """Reduce path traversal risk for uploaded filenames."""
-    name = Path(filename).name
+    # Null bytes can confuse Path / OS APIs; strip before basenaming.
+    name = Path(filename.replace("\x00", "")).name
     cleaned = _SAFE_FILENAME.sub("_", name).strip("._")
     if not cleaned:
         return "upload.bin"
@@ -45,6 +46,21 @@ def _trim_chat_history(history: list[dict[str, str]], max_turns: int) -> None:
     overflow = len(history) - max_turns
     if overflow > 0:
         del history[:overflow]
+
+
+def _session_history(
+    session_id: str,
+    *,
+    max_sessions: int,
+) -> list[dict[str, str]]:
+    """Return chat history for session_id, evicting oldest sessions if needed."""
+    if session_id not in chat_history:
+        while len(chat_history) >= max_sessions:
+            oldest = next(iter(chat_history))
+            del chat_history[oldest]
+            logger.info("Evicted chat session %s (session cap %s)", oldest, max_sessions)
+        chat_history[session_id] = []
+    return chat_history[session_id]
 
 
 @router.post("/ingest", response_model=IngestResponse)
@@ -110,7 +126,7 @@ def query(request: QueryRequest) -> StreamingResponse | EmptyRetrievalResponse:
     session_id = request.session_id
     question = request.question
 
-    history = chat_history.setdefault(session_id, [])
+    history = _session_history(session_id, max_sessions=settings.max_chat_sessions)
     chain = get_rag_chain(settings)
 
     try:
