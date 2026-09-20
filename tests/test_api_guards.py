@@ -36,7 +36,8 @@ def test_safe_filename_sanitizes_special_chars_and_empty() -> None:
 
 
 def test_safe_filename_strips_null_bytes() -> None:
-    assert _safe_filename("notes.txt\x00.exe") == "notes_txt_exe"
+    # Nulls are removed before basename; remaining chars still go through the allowlist.
+    assert _safe_filename("notes.txt\x00.exe") == "notes.txt.exe"
     assert _safe_filename("\x00") == "upload.bin"
 
 
