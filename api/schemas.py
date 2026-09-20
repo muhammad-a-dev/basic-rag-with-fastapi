@@ -31,7 +31,7 @@ class QueryRequest(BaseModel):
             raise ValueError("session_id must not be blank")
         if "\x00" in cleaned or not _SESSION_ID_RE.fullmatch(cleaned):
             raise ValueError(
-                "session_id must be 1–128 chars of letters, digits, ., _, or -"
+                "session_id must be 1-128 chars of letters, digits, ., _, or -"
             )
         return cleaned
 
