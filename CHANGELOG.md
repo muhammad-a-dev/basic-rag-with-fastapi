@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Config unit tests for string-env coercion of chunk/retriever knobs and absolute Chroma path overrides.
 - Helper unit tests for unsupported upload rejection, chunk splitting, missing-source labels, and extension edge cases.
 - Upload size cap (`MAX_UPLOAD_BYTES`, default 10 MiB), empty-upload rejection, long filename truncation, and in-memory chat history trim (`MAX_CHAT_HISTORY_TURNS`).
+- Concurrent chat session cap (`MAX_CHAT_SESSIONS`, default 100) with oldest-first eviction.
 
 ### Changed
 
@@ -22,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - Reject empty and oversized ingest payloads before writing to disk; document upload/history bounds in `SECURITY.md`.
+- Reject null-byte upload filenames; constrain `session_id` to safe characters; strip null bytes during filename sanitization; cap concurrent in-memory chat sessions.
 
 ## [0.1.0] - 2026-09-04
 

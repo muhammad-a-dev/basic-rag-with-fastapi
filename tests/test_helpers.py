@@ -27,6 +27,11 @@ def test_is_allowed_upload() -> None:
     assert is_allowed_upload("") is False
 
 
+def test_is_allowed_upload_rejects_null_bytes() -> None:
+    assert is_allowed_upload("notes.txt\x00.exe") is False
+    assert is_allowed_upload("\x00notes.txt") is False
+
+
 def test_load_document_rejects_unsupported_extension(tmp_path: Path) -> None:
     bad = tmp_path / "notes.docx"
     bad.write_text("not a supported upload", encoding="utf-8")

@@ -29,8 +29,9 @@ Uploaded documents and Chroma embeddings live under `TEMP_UPLOAD_DIR` and `CHROM
 ## Upload and session bounds
 
 - Ingest rejects empty files and payloads larger than `MAX_UPLOAD_BYTES` (default 10 MiB) before writing to disk.
-- Uploaded filenames are sanitized and truncated to limit path traversal and oversized name abuse.
-- In-process chat history is capped by `MAX_CHAT_HISTORY_TURNS` (default 20 newest turns per session).
+- Uploaded filenames are sanitized (null bytes stripped) and truncated to limit path traversal and oversized name abuse; null-byte filenames are rejected as invalid uploads.
+- `session_id` must be 1–128 characters of letters, digits, `.`, `_`, or `-` (no spaces, null bytes, or control characters).
+- In-process chat history is capped by `MAX_CHAT_HISTORY_TURNS` (default 20 newest turns per session) and `MAX_CHAT_SESSIONS` (default 100 sessions; oldest sessions are evicted first).
 
 ## Scope notes
 

@@ -36,3 +36,23 @@ def test_query_request_rejects_overlong_question() -> None:
 def test_query_request_rejects_blank_session_id() -> None:
     with pytest.raises(ValidationError):
         QueryRequest(question="hello", session_id="  ")
+
+
+def test_query_request_rejects_null_byte_question() -> None:
+    with pytest.raises(ValidationError):
+        QueryRequest(question="hello\x00world", session_id="session-1")
+
+
+def test_query_request_rejects_null_byte_session_id() -> None:
+    with pytest.raises(ValidationError):
+        QueryRequest(question="hello", session_id="sess\x00ion")
+
+
+def test_query_request_rejects_spaces_in_session_id() -> None:
+    with pytest.raises(ValidationError):
+        QueryRequest(question="hello", session_id="bad id")
+
+
+def test_query_request_accepts_dotted_session_ids() -> None:
+    req = QueryRequest(question="hello", session_id="user.42_test-id")
+    assert req.session_id == "user.42_test-id"
