@@ -24,7 +24,7 @@ Email or privately message the repository owner (`muhammad-a-dev`) with:
 
 ## Local data stores
 
-Uploaded documents and Chroma embeddings live under `TEMP_UPLOAD_DIR` and `CHROMA_PERSIST_DIRECTORY`. Treat those directories as sensitive if they hold private content — do not commit them, and avoid sharing volume dumps casually.
+Uploaded documents and Chroma embeddings live under `TEMP_UPLOAD_DIR` and `CHROMA_PERSIST_DIRECTORY`. Treat those directories as sensitive if they hold private content. Do not commit them, and avoid sharing volume dumps casually.
 
 ## Upload and session bounds
 
@@ -32,6 +32,13 @@ Uploaded documents and Chroma embeddings live under `TEMP_UPLOAD_DIR` and `CHROM
 - Uploaded filenames are sanitized (null bytes stripped) and truncated to limit path traversal and oversized name abuse; null-byte filenames are rejected as invalid uploads.
 - `session_id` must be 1–128 characters of letters, digits, `.`, `_`, or `-` (no spaces, null bytes, or control characters).
 - In-process chat history is capped by `MAX_CHAT_HISTORY_TURNS` (default 20 newest turns per session) and `MAX_CHAT_SESSIONS` (default 100 sessions; oldest sessions are evicted first).
+
+## Temp uploads and error responses
+
+- Each ingest write uses a unique prefix under `TEMP_UPLOAD_DIR` so same-name uploads cannot overwrite each other.
+- Temp upload files are deleted after ingest finishes (success or failure). Document text already lives in Chroma; keeping the raw file on disk is unnecessary.
+- HTTP 500 responses for read/save/ingest/query failures use fixed client messages. Exception details stay in server logs only.
+- `X-Sources` values are stripped of control characters (including CR/LF) and commas so source labels cannot split or inject response headers.
 
 ## Scope notes
 

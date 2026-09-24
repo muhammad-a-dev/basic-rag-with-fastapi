@@ -22,12 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Hide internal exception details from HTTP 500 bodies; log them server-side only.
+- Delete temp upload files after ingest; write each upload under a unique prefix.
+- Sanitize `X-Sources` header values (strip controls and commas).
 - Reject empty and oversized ingest payloads before writing to disk; document upload/history bounds in `SECURITY.md`.
 - Reject null-byte upload filenames; constrain `session_id` to safe characters; strip null bytes during filename sanitization; cap concurrent in-memory chat sessions.
 
 ## [0.1.0] - 2026-09-04
 
-Initial public portfolio release of **basic-rag-with-fastapi** — a focused RAG HTTP API for document Q&A.
+Initial public portfolio release of **basic-rag-with-fastapi**, a focused RAG HTTP API for document Q&A.
 
 ### Added
 
@@ -46,4 +49,4 @@ Initial public portfolio release of **basic-rag-with-fastapi** — a focused RAG
 ### Security
 
 - Secrets stay in environment variables; `.env` is gitignored
-- Service is a portfolio/learning capstone — not meant for public exposure without auth and rate limits
+- Service is a portfolio/learning capstone, not meant for public exposure without auth and rate limits

@@ -159,3 +159,48 @@ def test_query_rejects_invalid_session_id_via_api(client: TestClient) -> None:
 def test_query_request_model_rejects_blank_question() -> None:
     with pytest.raises(ValidationError):
         QueryRequest(question="\t\n", session_id="ok")
+
+
+def test_header_safe_sources_strips_controls_and_commas() -> None:
+    from api.routes import _header_safe_sources
+
+    assert _header_safe_sources(["notes.txt", "a,b\r\nSet-Cookie: x"]) == (
+        "notes.txt, a bSet-Cookie: x"
+    )
+    assert _header_safe_sources(["\x00", "  "]) == ""
+
+
+def test_unique_upload_path_prefixes_safe_name(tmp_path) -> None:
+    from api.routes import _unique_upload_path
+
+    path = _unique_upload_path(tmp_path, "notes.txt")
+    assert path.parent == tmp_path
+    assert path.name.endswith("_notes.txt")
+    assert len(path.name.split("_", 1)[0]) == 12
+
+
+def test_ingest_removes_temp_file_after_pipeline_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("TEMP_UPLOAD_DIR", str(tmp_path))
+    get_settings.cache_clear()
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("secret path /var/leak and key sk-test")
+
+    monkeypatch.setattr("api.routes.load_document", boom)
+    try:
+        client = TestClient(create_app())
+        response = client.post(
+            "/api/ingest",
+            files={"file": ("notes.txt", b"hello world", "text/plain")},
+        )
+        assert response.status_code == 500
+        detail = response.json()["detail"]
+        assert detail == "Ingestion failed."
+        assert "secret" not in detail
+        assert "sk-test" not in detail
+        leftovers = list(tmp_path.iterdir())
+        assert leftovers == []
+    finally:
+        get_settings.cache_clear()
