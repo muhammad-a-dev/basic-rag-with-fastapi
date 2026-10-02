@@ -9,6 +9,8 @@ from pydantic import ValidationError
 from api.main import create_app
 from api.routes import (
     _MAX_SAFE_FILENAME_LEN,
+    _ensure_under_dir,
+    _read_upload_bounded,
     _safe_filename,
     _session_history,
     _trim_chat_history,
@@ -203,4 +205,85 @@ def test_ingest_removes_temp_file_after_pipeline_error(
         leftovers = list(tmp_path.iterdir())
         assert leftovers == []
     finally:
+        get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_read_upload_bounded_accepts_exact_max() -> None:
+    import io
+
+    from starlette.datastructures import Headers
+    from starlette.datastructures import UploadFile as StarletteUploadFile
+
+    body = b"x" * 32
+    upload = StarletteUploadFile(
+        file=io.BytesIO(body),
+        filename="notes.txt",
+        headers=Headers({"content-type": "text/plain"}),
+    )
+    assert await _read_upload_bounded(upload, 32) == body
+
+
+@pytest.mark.asyncio
+async def test_read_upload_bounded_rejects_oversize() -> None:
+    import io
+
+    from starlette.datastructures import Headers
+    from starlette.datastructures import UploadFile as StarletteUploadFile
+
+    body = b"x" * 33
+    upload = StarletteUploadFile(
+        file=io.BytesIO(body),
+        filename="notes.txt",
+        headers=Headers({"content-type": "text/plain"}),
+    )
+    with pytest.raises(ValueError, match="upload_too_large"):
+        await _read_upload_bounded(upload, 32)
+
+
+def test_ensure_under_dir_accepts_child(tmp_path) -> None:
+    child = tmp_path / "a" / "b.txt"
+    child.parent.mkdir(parents=True)
+    child.write_text("ok", encoding="utf-8")
+    assert _ensure_under_dir(child, tmp_path) == child.resolve()
+
+
+def test_ensure_under_dir_rejects_escape(tmp_path) -> None:
+    outside = tmp_path.parent / "outside.txt"
+    with pytest.raises(ValueError, match="path_escapes_root"):
+        _ensure_under_dir(outside, tmp_path)
+
+
+def test_stored_response_cap_applied_in_query_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Streaming may yield a long answer; only the configured prefix is stored."""
+    from types import SimpleNamespace
+
+    chat_history.clear()
+    get_settings.cache_clear()
+    monkeypatch.setenv("MAX_STORED_RESPONSE_CHARS", "10")
+    get_settings.cache_clear()
+
+    class FakeChain:
+        def retrieve(self, question, history=None):
+            return SimpleNamespace(prompt="p", sources=["notes.txt"])
+
+        def stream_answer(self, prompt):
+            yield "abcdefghijklmnop"
+
+    monkeypatch.setattr("api.routes.get_rag_chain", lambda settings: FakeChain())
+    try:
+        client = TestClient(create_app())
+        with client.stream(
+            "POST",
+            "/api/query",
+            json={"question": "hello", "session_id": "cap-test"},
+        ) as response:
+            assert response.status_code == 200
+            body = b"".join(response.iter_bytes()).decode()
+        assert body == "abcdefghijklmnop"
+        assert chat_history["cap-test"][0]["ai"] == "abcdefghij"
+    finally:
+        chat_history.clear()
         get_settings.cache_clear()

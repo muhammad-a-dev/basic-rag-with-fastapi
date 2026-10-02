@@ -57,6 +57,11 @@ class Settings(BaseSettings):
         alias="MAX_CHAT_SESSIONS",
         ge=1,
     )
+    max_stored_response_chars: int = Field(
+        default=8_192,
+        alias="MAX_STORED_RESPONSE_CHARS",
+        ge=1,
+    )
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     @property

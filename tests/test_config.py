@@ -34,6 +34,8 @@ def test_numeric_knobs_coerce_from_strings() -> None:
         retriever_score_threshold="0.35",
         max_upload_bytes="2048",
         max_chat_history_turns="8",
+        max_chat_sessions="50",
+        max_stored_response_chars="4096",
     )
     assert settings.chunk_size == 750
     assert settings.chunk_overlap == 75
@@ -41,6 +43,8 @@ def test_numeric_knobs_coerce_from_strings() -> None:
     assert settings.retriever_score_threshold == 0.35
     assert settings.max_upload_bytes == 2048
     assert settings.max_chat_history_turns == 8
+    assert settings.max_chat_sessions == 50
+    assert settings.max_stored_response_chars == 4096
 
 
 def test_upload_and_history_bounds_reject_zero() -> None:
@@ -48,3 +52,7 @@ def test_upload_and_history_bounds_reject_zero() -> None:
         Settings(max_upload_bytes=0)
     with pytest.raises(ValidationError):
         Settings(max_chat_history_turns=0)
+    with pytest.raises(ValidationError):
+        Settings(max_chat_sessions=0)
+    with pytest.raises(ValidationError):
+        Settings(max_stored_response_chars=0)

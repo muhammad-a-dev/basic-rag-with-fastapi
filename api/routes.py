@@ -24,6 +24,36 @@ chat_history: dict[str, list[dict[str, str]]] = {}
 _SAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
 _MAX_SAFE_FILENAME_LEN = 200
 _HEADER_UNSAFE = re.compile(r"[\x00-\x1f\x7f]+")
+_READ_CHUNK_SIZE = 64 * 1024
+
+
+async def _read_upload_bounded(file: UploadFile, max_bytes: int) -> bytes:
+    """Read an upload in chunks, stopping once max_bytes is exceeded.
+
+    Returns the body when it fits. Raises ValueError("upload_too_large") when the
+    stream grows past the cap so callers can respond with HTTP 413 without holding
+    an unbounded buffer.
+    """
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(_READ_CHUNK_SIZE)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise ValueError("upload_too_large")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _ensure_under_dir(path: Path, root: Path) -> Path:
+    """Resolve path and require it to stay under root (blocks symlink escapes)."""
+    resolved = path.resolve()
+    root_resolved = root.resolve()
+    if not resolved.is_relative_to(root_resolved):
+        raise ValueError("path_escapes_root")
+    return resolved
 
 
 def _safe_filename(filename: str) -> str:
@@ -103,7 +133,14 @@ async def ingest(file: UploadFile = File(...)) -> IngestResponse:
     safe_name = _safe_filename(file.filename)
 
     try:
-        contents = await file.read()
+        contents = await _read_upload_bounded(file, settings.max_upload_bytes)
+    except ValueError as exc:
+        if str(exc) == "upload_too_large":
+            raise HTTPException(
+                status_code=413,
+                detail=(f"File exceeds maximum upload size of {settings.max_upload_bytes} bytes."),
+            ) from None
+        raise
     except OSError:
         logger.exception("Failed to read upload")
         raise HTTPException(status_code=500, detail="Failed to read uploaded file.") from None
@@ -113,16 +150,15 @@ async def ingest(file: UploadFile = File(...)) -> IngestResponse:
     if not contents:
         raise HTTPException(status_code=400, detail="Empty uploads are not allowed.")
 
-    if len(contents) > settings.max_upload_bytes:
-        raise HTTPException(
-            status_code=413,
-            detail=(
-                f"File exceeds maximum upload size of {settings.max_upload_bytes} bytes."
-            ),
-        )
-
     settings.temp_path.mkdir(parents=True, exist_ok=True)
-    file_location = _unique_upload_path(settings.temp_path, safe_name)
+    try:
+        file_location = _ensure_under_dir(
+            _unique_upload_path(settings.temp_path, safe_name),
+            settings.temp_path,
+        )
+    except ValueError:
+        logger.error("Rejected upload path outside TEMP_UPLOAD_DIR for %s", safe_name)
+        raise HTTPException(status_code=400, detail="Invalid upload path.") from None
 
     try:
         file_location.write_bytes(contents)
@@ -177,7 +213,8 @@ def query(request: QueryRequest) -> StreamingResponse | EmptyRetrievalResponse:
         except Exception:
             logger.exception("Streaming generation failed")
             raise
-        history.append({"user": question, "ai": collected_response})
+        stored = collected_response[: settings.max_stored_response_chars]
+        history.append({"user": question, "ai": stored})
         _trim_chat_history(history, settings.max_chat_history_turns)
 
     return StreamingResponse(

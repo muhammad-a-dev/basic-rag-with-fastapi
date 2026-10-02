@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Helper unit tests for unsupported upload rejection, chunk splitting, missing-source labels, and extension edge cases.
 - Upload size cap (`MAX_UPLOAD_BYTES`, default 10 MiB), empty-upload rejection, long filename truncation, and in-memory chat history trim (`MAX_CHAT_HISTORY_TURNS`).
 - Concurrent chat session cap (`MAX_CHAT_SESSIONS`, default 100) with oldest-first eviction.
+- Stored AI reply cap (`MAX_STORED_RESPONSE_CHARS`, default 8192) for in-memory chat history.
 
 ### Changed
 
@@ -22,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Stream-bounded ingest reads stop once `MAX_UPLOAD_BYTES` is exceeded so oversized uploads are not fully buffered.
+- Reject temp upload paths that resolve outside `TEMP_UPLOAD_DIR`.
+- Cap stored AI reply length in chat history via `MAX_STORED_RESPONSE_CHARS` (default 8192).
 - Hide internal exception details from HTTP 500 bodies; log them server-side only.
 - Delete temp upload files after ingest; write each upload under a unique prefix.
 - Sanitize `X-Sources` header values (strip controls and commas).
