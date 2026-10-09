@@ -118,6 +118,116 @@ def test_ingest_rejects_empty_upload(client: TestClient) -> None:
     assert "Empty uploads" in response.json()["detail"]
 
 
+
+def test_ingest_rejects_pdf_without_magic(client: TestClient) -> None:
+    response = client.post(
+        "/api/ingest",
+        files={"file": ("fake.pdf", b"plain text disguised as pdf", "application/pdf")},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "File content does not match the declared type."
+
+
+def test_ingest_rejects_txt_with_nul(client: TestClient) -> None:
+    response = client.post(
+        "/api/ingest",
+        files={"file": ("notes.txt", b"hello\x00world", "text/plain")},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "File content does not match the declared type."
+
+
+def test_ingest_rejects_txt_non_utf8(client: TestClient) -> None:
+    response = client.post(
+        "/api/ingest",
+        files={"file": ("notes.txt", b"\xff\xfe binary junk", "text/plain")},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "File content does not match the declared type."
+
+
+def test_ingest_accepts_pdf_with_magic(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("TEMP_UPLOAD_DIR", str(tmp_path))
+    get_settings.cache_clear()
+
+    def fake_load(_path):
+        return [object()]
+
+    def fake_chunk(document, settings=None):
+        return [object(), object()]
+
+    class FakeEmbeddings:
+        pass
+
+    class FakeStore:
+        def add_documents(self, chunks):
+            return None
+
+    monkeypatch.setattr("api.routes.load_document", fake_load)
+    monkeypatch.setattr("api.routes.chunk_document", fake_chunk)
+    monkeypatch.setattr("api.routes.embedding_model", lambda settings=None: FakeEmbeddings())
+    monkeypatch.setattr(
+        "api.routes.vectorstore_initializer",
+        lambda embeddings, settings=None: FakeStore(),
+    )
+    try:
+        client = TestClient(create_app())
+        response = client.post(
+            "/api/ingest",
+            files={"file": ("paper.pdf", b"%PDF-1.4\n1 0 obj", "application/pdf")},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "success"
+        assert body["chunks_stored"] == 2
+        assert body["filename"] == "paper.pdf"
+    finally:
+        get_settings.cache_clear()
+
+
+def test_ingest_accepts_utf8_txt(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("TEMP_UPLOAD_DIR", str(tmp_path))
+    get_settings.cache_clear()
+
+    def fake_load(_path):
+        return [object()]
+
+    def fake_chunk(document, settings=None):
+        return [object()]
+
+    class FakeEmbeddings:
+        pass
+
+    class FakeStore:
+        def add_documents(self, chunks):
+            return None
+
+    monkeypatch.setattr("api.routes.load_document", fake_load)
+    monkeypatch.setattr("api.routes.chunk_document", fake_chunk)
+    monkeypatch.setattr("api.routes.embedding_model", lambda settings=None: FakeEmbeddings())
+    monkeypatch.setattr(
+        "api.routes.vectorstore_initializer",
+        lambda embeddings, settings=None: FakeStore(),
+    )
+    try:
+        client = TestClient(create_app())
+        response = client.post(
+            "/api/ingest",
+            files={"file": ("notes.txt", "hello world".encode("utf-8"), "text/plain")},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "success"
+        assert body["chunks_stored"] == 1
+        assert body["filename"] == "notes.txt"
+    finally:
+        get_settings.cache_clear()
+
+
 def test_ingest_rejects_oversized_upload(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     monkeypatch.setenv("MAX_UPLOAD_BYTES", "32")
     monkeypatch.setenv("TEMP_UPLOAD_DIR", str(tmp_path))

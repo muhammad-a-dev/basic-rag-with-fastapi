@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Verify ingest upload bytes match the declared extension (PDF `%PDF` magic; TXT UTF-8 without NUL) before writing to disk.
 - Stream-bounded ingest reads stop once `MAX_UPLOAD_BYTES` is exceeded so oversized uploads are not fully buffered.
 - Reject temp upload paths that resolve outside `TEMP_UPLOAD_DIR`.
 - Cap stored AI reply length in chat history via `MAX_STORED_RESPONSE_CHARS` (default 8192).

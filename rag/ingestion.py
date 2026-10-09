@@ -32,6 +32,26 @@ def is_allowed_upload(filename: str | None) -> bool:
     return get_file_extension(filename) in ALLOWED_EXTENSIONS
 
 
+def content_matches_extension(filename: str, data: bytes) -> bool:
+    """Return True when upload bytes match the sanitized file extension.
+
+    Extension alone is not enough: PDF bodies must start with the %PDF magic
+    bytes, and TXT bodies must be valid UTF-8 without NUL bytes.
+    """
+    ext = get_file_extension(filename)
+    if ext == ".pdf":
+        return data.startswith(b"%PDF")
+    if ext == ".txt":
+        if b"\x00" in data:
+            return False
+        try:
+            data.decode("utf-8", errors="strict")
+        except UnicodeDecodeError:
+            return False
+        return True
+    return False
+
+
 def load_document(file_path: str | Path) -> list[Document]:
     """Load a PDF or TXT file into LangChain documents."""
     path = Path(file_path)

@@ -13,7 +13,13 @@ from fastapi.responses import StreamingResponse
 from api.schemas import EmptyRetrievalResponse, IngestResponse, QueryRequest
 from rag.chain import get_rag_chain
 from rag.config import get_settings
-from rag.ingestion import chunk_document, embedding_model, is_allowed_upload, load_document
+from rag.ingestion import (
+    chunk_document,
+    content_matches_extension,
+    embedding_model,
+    is_allowed_upload,
+    load_document,
+)
 from rag.retriever import vectorstore_initializer
 
 logger = logging.getLogger(__name__)
@@ -149,6 +155,12 @@ async def ingest(file: UploadFile = File(...)) -> IngestResponse:
 
     if not contents:
         raise HTTPException(status_code=400, detail="Empty uploads are not allowed.")
+
+    if not content_matches_extension(safe_name, contents):
+        raise HTTPException(
+            status_code=400,
+            detail="File content does not match the declared type.",
+        )
 
     settings.temp_path.mkdir(parents=True, exist_ok=True)
     try:

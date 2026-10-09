@@ -6,7 +6,13 @@ import pytest
 from langchain_core.documents import Document
 
 from rag.config import Settings
-from rag.ingestion import chunk_document, get_file_extension, is_allowed_upload, load_document
+from rag.ingestion import (
+    chunk_document,
+    content_matches_extension,
+    get_file_extension,
+    is_allowed_upload,
+    load_document,
+)
 from rag.retriever import extract_sources, generate_augmented_prompt, normalize_source_label
 
 
@@ -30,6 +36,32 @@ def test_is_allowed_upload() -> None:
 def test_is_allowed_upload_rejects_null_bytes() -> None:
     assert is_allowed_upload("notes.txt\x00.exe") is False
     assert is_allowed_upload("\x00notes.txt") is False
+
+
+def test_content_matches_extension_pdf_magic_ok() -> None:
+    assert content_matches_extension("doc.pdf", b"%PDF-1.4\n%rest") is True
+
+
+def test_content_matches_extension_pdf_magic_fail() -> None:
+    assert content_matches_extension("doc.pdf", b"not a pdf") is False
+    assert content_matches_extension("doc.pdf", b"") is False
+
+
+def test_content_matches_extension_txt_utf8_ok() -> None:
+    assert content_matches_extension("notes.txt", "hello cafe".encode("utf-8")) is True
+    assert content_matches_extension("notes.txt", "unicode: \u00e9".encode("utf-8")) is True
+
+
+def test_content_matches_extension_txt_rejects_nul() -> None:
+    assert content_matches_extension("notes.txt", b"hello\x00world") is False
+
+
+def test_content_matches_extension_txt_rejects_non_utf8() -> None:
+    assert content_matches_extension("notes.txt", b"\xff\xfe binary") is False
+
+
+def test_content_matches_extension_unknown_ext() -> None:
+    assert content_matches_extension("blob.bin", b"%PDF-1.4") is False
 
 
 def test_load_document_rejects_unsupported_extension(tmp_path: Path) -> None:

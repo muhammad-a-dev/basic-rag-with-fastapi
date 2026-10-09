@@ -30,6 +30,7 @@ Uploaded documents and Chroma embeddings live under `TEMP_UPLOAD_DIR` and `CHROM
 
 - Ingest reads uploads in chunks and rejects payloads larger than `MAX_UPLOAD_BYTES` (default 10 MiB) as soon as the stream exceeds the cap, so oversized bodies are not fully buffered in memory.
 - Empty uploads are rejected before writing to disk.
+- After a bounded read, upload bytes must match the declared extension: PDF bodies must start with `%PDF`; TXT bodies must be valid UTF-8 without NUL bytes. Mismatches return HTTP 400 with a fixed message.
 - Uploaded filenames are sanitized (null bytes stripped) and truncated to limit path traversal and oversized name abuse; null-byte filenames are rejected as invalid uploads.
 - Resolved temp upload paths must stay under `TEMP_UPLOAD_DIR` (blocks symlink escapes outside the temp root).
 - `session_id` must be 1-128 characters of letters, digits, `.`, `_`, or `-` (no spaces, null bytes, or control characters).
