@@ -34,7 +34,7 @@ Uploaded documents and Chroma embeddings live under `TEMP_UPLOAD_DIR` and `CHROM
 - Uploaded filenames are sanitized (null bytes stripped) and truncated to limit path traversal and oversized name abuse; null-byte filenames are rejected as invalid uploads.
 - Resolved temp upload paths must stay under `TEMP_UPLOAD_DIR` (blocks symlink escapes outside the temp root).
 - `session_id` must be 1-128 characters of letters, digits, `.`, `_`, or `-` (no spaces, null bytes, or control characters).
-- In-process chat history is capped by `MAX_CHAT_HISTORY_TURNS` (default 20 newest turns per session), `MAX_CHAT_SESSIONS` (default 100 sessions; oldest sessions are evicted first), and `MAX_STORED_RESPONSE_CHARS` (default 8192 characters kept per stored AI reply).
+- In-process chat history is capped by `MAX_CHAT_HISTORY_TURNS` (default 20 newest turns per session), `MAX_CHAT_SESSIONS` (default 100 sessions; oldest sessions are evicted first), and `MAX_STORED_RESPONSE_CHARS` (default 8192 characters kept per stored AI reply). While streaming, the in-memory collector for that stored reply stops growing once the cap is reached so a long LLM stream cannot inflate process memory for history.
 
 ## Temp uploads and error responses
 

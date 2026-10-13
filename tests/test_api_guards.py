@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from api.main import create_app
 from api.routes import (
     _MAX_SAFE_FILENAME_LEN,
+    _append_bounded,
     _ensure_under_dir,
     _read_upload_bounded,
     _safe_filename,
@@ -64,6 +65,18 @@ def test_trim_chat_history_noop_when_under_limit() -> None:
     history = [{"user": "u", "ai": "a"}]
     _trim_chat_history(history, max_turns=5)
     assert history == [{"user": "u", "ai": "a"}]
+
+
+def test_append_bounded_stops_at_max() -> None:
+    assert _append_bounded("", "abcdefghij", 5) == "abcde"
+    assert _append_bounded("abc", "defgh", 5) == "abcde"
+    assert _append_bounded("abcde", "xyz", 5) == "abcde"
+    assert _append_bounded("ab", "cd", 5) == "abcd"
+
+
+def test_append_bounded_noop_when_max_non_positive() -> None:
+    assert _append_bounded("keep", "more", 0) == "keep"
+    assert _append_bounded("keep", "more", -1) == "keep"
 
 
 def test_session_history_evicts_oldest_when_over_cap() -> None:
@@ -217,7 +230,7 @@ def test_ingest_accepts_utf8_txt(
         client = TestClient(create_app())
         response = client.post(
             "/api/ingest",
-            files={"file": ("notes.txt", "hello world".encode("utf-8"), "text/plain")},
+            files={"file": ("notes.txt", b"hello world", "text/plain")},
         )
         assert response.status_code == 200
         body = response.json()
@@ -380,7 +393,10 @@ def test_stored_response_cap_applied_in_query_stream(
             return SimpleNamespace(prompt="p", sources=["notes.txt"])
 
         def stream_answer(self, prompt):
-            yield "abcdefghijklmnop"
+            # Several chunks past the store cap; collector must stay bounded.
+            yield "abcdef"
+            yield "ghijkl"
+            yield "mnop"
 
     monkeypatch.setattr("api.routes.get_rag_chain", lambda settings: FakeChain())
     try:
@@ -397,3 +413,42 @@ def test_stored_response_cap_applied_in_query_stream(
     finally:
         chat_history.clear()
         get_settings.cache_clear()
+
+
+def test_stream_collector_stays_bounded_across_many_chunks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Long multi-chunk streams must not grow the history buffer past the cap."""
+    from types import SimpleNamespace
+
+    chat_history.clear()
+    get_settings.cache_clear()
+    monkeypatch.setenv("MAX_STORED_RESPONSE_CHARS", "8")
+    get_settings.cache_clear()
+
+    class FakeChain:
+        def retrieve(self, question, history=None):
+            return SimpleNamespace(prompt="p", sources=["doc.txt"])
+
+        def stream_answer(self, prompt):
+            for _ in range(20):
+                yield "XXXX"
+
+    monkeypatch.setattr("api.routes.get_rag_chain", lambda settings: FakeChain())
+    try:
+        client = TestClient(create_app())
+        with client.stream(
+            "POST",
+            "/api/query",
+            json={"question": "hello", "session_id": "bound-stream"},
+        ) as response:
+            assert response.status_code == 200
+            body = b"".join(response.iter_bytes()).decode()
+        assert body == "XXXX" * 20
+        stored = chat_history["bound-stream"][0]["ai"]
+        assert stored == "XXXXXXXX"
+        assert len(stored) == 8
+    finally:
+        chat_history.clear()
+        get_settings.cache_clear()
+

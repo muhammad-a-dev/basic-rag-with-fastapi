@@ -91,6 +91,19 @@ def _header_safe_sources(sources: list[str]) -> str:
     return ", ".join(cleaned)
 
 
+def _append_bounded(buf: str, chunk: str, max_len: int) -> str:
+    """Append chunk to buf without growing past max_len.
+
+    Used while streaming LLM output so the in-memory collector for chat history
+    never holds more than MAX_STORED_RESPONSE_CHARS, even if the client stream
+    continues longer.
+    """
+    if max_len < 1 or len(buf) >= max_len:
+        return buf
+    room = max_len - len(buf)
+    return buf + chunk[:room]
+
+
 def _unlink_quiet(path: Path) -> None:
     """Best-effort delete for temp uploads; never raise to the client."""
     try:
@@ -218,15 +231,17 @@ def query(request: QueryRequest) -> StreamingResponse | EmptyRetrievalResponse:
 
     def stream_and_save_response():
         collected_response = ""
+        max_store = settings.max_stored_response_chars
         try:
             for chunk in chain.stream_answer(result.prompt):
-                collected_response += chunk
+                collected_response = _append_bounded(
+                    collected_response, chunk, max_store
+                )
                 yield chunk
         except Exception:
             logger.exception("Streaming generation failed")
             raise
-        stored = collected_response[: settings.max_stored_response_chars]
-        history.append({"user": question, "ai": stored})
+        history.append({"user": question, "ai": collected_response})
         _trim_chat_history(history, settings.max_chat_history_turns)
 
     return StreamingResponse(
