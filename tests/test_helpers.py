@@ -48,7 +48,7 @@ def test_content_matches_extension_pdf_magic_fail() -> None:
 
 
 def test_content_matches_extension_txt_utf8_ok() -> None:
-    assert content_matches_extension("notes.txt", "hello cafe".encode("utf-8")) is True
+    assert content_matches_extension("notes.txt", b"hello cafe") is True
     assert content_matches_extension("notes.txt", "unicode: \u00e9".encode("utf-8")) is True
 
 

@@ -452,3 +452,77 @@ def test_stream_collector_stays_bounded_across_many_chunks(
         chat_history.clear()
         get_settings.cache_clear()
 
+
+
+def test_ingest_rejects_too_many_chunks_before_embedding(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("TEMP_UPLOAD_DIR", str(tmp_path))
+    monkeypatch.setenv("MAX_INGEST_CHUNKS", "3")
+    get_settings.cache_clear()
+
+    calls = {"embed": 0, "store": 0}
+
+    def fake_embed(settings=None):
+        calls["embed"] += 1
+        return object()
+
+    def fake_store(embeddings, settings=None):
+        calls["store"] += 1
+        raise AssertionError("vector store must not be touched")
+
+    monkeypatch.setattr("api.routes.load_document", lambda _path: [object()])
+    monkeypatch.setattr(
+        "api.routes.chunk_document",
+        lambda document, settings=None: [object() for _ in range(4)],
+    )
+    monkeypatch.setattr("api.routes.embedding_model", fake_embed)
+    monkeypatch.setattr("api.routes.vectorstore_initializer", fake_store)
+    try:
+        client = TestClient(create_app())
+        response = client.post(
+            "/api/ingest",
+            files={"file": ("notes.txt", b"hello world", "text/plain")},
+        )
+        assert response.status_code == 413
+        assert response.json()["detail"] == "Document produces too many chunks (limit 3)."
+        assert calls == {"embed": 0, "store": 0}
+        assert list(tmp_path.iterdir()) == []
+    finally:
+        get_settings.cache_clear()
+
+
+def test_ingest_accepts_chunk_count_at_limit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("TEMP_UPLOAD_DIR", str(tmp_path))
+    monkeypatch.setenv("MAX_INGEST_CHUNKS", "3")
+    get_settings.cache_clear()
+
+    stored: list[int] = []
+
+    class FakeStore:
+        def add_documents(self, chunks):
+            stored.append(len(chunks))
+
+    monkeypatch.setattr("api.routes.load_document", lambda _path: [object()])
+    monkeypatch.setattr(
+        "api.routes.chunk_document",
+        lambda document, settings=None: [object() for _ in range(3)],
+    )
+    monkeypatch.setattr("api.routes.embedding_model", lambda settings=None: object())
+    monkeypatch.setattr(
+        "api.routes.vectorstore_initializer",
+        lambda embeddings, settings=None: FakeStore(),
+    )
+    try:
+        client = TestClient(create_app())
+        response = client.post(
+            "/api/ingest",
+            files={"file": ("notes.txt", b"hello world", "text/plain")},
+        )
+        assert response.status_code == 200
+        assert response.json()["chunks_stored"] == 3
+        assert stored == [3]
+    finally:
+        get_settings.cache_clear()

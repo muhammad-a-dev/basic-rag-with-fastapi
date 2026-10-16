@@ -194,9 +194,27 @@ async def ingest(file: UploadFile = File(...)) -> IngestResponse:
     try:
         document = load_document(file_location)
         chunks = chunk_document(document, settings=settings)
+        if len(chunks) > settings.max_ingest_chunks:
+            # Checked before any embedding call so one upload cannot run up
+            # thousands of paid embedding requests or bloat the Chroma store.
+            logger.warning(
+                "Rejected %s: %s chunks exceeds MAX_INGEST_CHUNKS=%s",
+                safe_name,
+                len(chunks),
+                settings.max_ingest_chunks,
+            )
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    "Document produces too many chunks "
+                    f"(limit {settings.max_ingest_chunks})."
+                ),
+            )
         embeddings = embedding_model(settings=settings)
         vectorstore = vectorstore_initializer(embeddings, settings=settings)
         vectorstore.add_documents(chunks)
+    except HTTPException:
+        raise
     except Exception:
         logger.exception("Ingestion failed for %s", safe_name)
         raise HTTPException(status_code=500, detail="Ingestion failed.") from None

@@ -47,6 +47,11 @@ class Settings(BaseSettings):
         alias="MAX_UPLOAD_BYTES",
         ge=1,
     )
+    max_ingest_chunks: int = Field(
+        default=2_000,
+        alias="MAX_INGEST_CHUNKS",
+        ge=1,
+    )
     max_chat_history_turns: int = Field(
         default=20,
         alias="MAX_CHAT_HISTORY_TURNS",
