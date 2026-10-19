@@ -37,6 +37,13 @@ Uploaded documents and Chroma embeddings live under `TEMP_UPLOAD_DIR` and `CHROM
 - `session_id` must be 1-128 characters of letters, digits, `.`, `_`, or `-` (no spaces, null bytes, or control characters).
 - In-process chat history is capped by `MAX_CHAT_HISTORY_TURNS` (default 20 newest turns per session), `MAX_CHAT_SESSIONS` (default 100 sessions; oldest sessions are evicted first), and `MAX_STORED_RESPONSE_CHARS` (default 8192 characters kept per stored AI reply). While streaming, the in-memory collector for that stored reply stops growing once the cap is reached so a long LLM stream cannot inflate process memory for history.
 
+## Retrieval and chunking bounds
+
+- `RETRIEVER_K` must be 1-20 and `CHUNK_SIZE` must be 1-8000 characters. Each query sends up to `RETRIEVER_K` x `CHUNK_SIZE` characters of context to the paid LLM, so an unbounded value (for example a typo like `RETRIEVER_K=500`) would make every request a very large prompt.
+- `CHUNK_OVERLAP` must be 0 or more and smaller than `CHUNK_SIZE`; otherwise the text splitter would fail on every ingest at request time.
+- `RETRIEVER_SCORE_THRESHOLD` must be between 0 and 1.
+- Out-of-range values fail settings validation at startup instead of surfacing later as HTTP 500 responses.
+
 ## Temp uploads and error responses
 
 - Each ingest write uses a unique prefix under `TEMP_UPLOAD_DIR` so same-name uploads cannot overwrite each other.

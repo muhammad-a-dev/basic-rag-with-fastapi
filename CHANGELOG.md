@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Validate retrieval and chunking settings at startup: `RETRIEVER_K` 1-20, `CHUNK_SIZE` 1-8000, `CHUNK_OVERLAP` 0 or more and below `CHUNK_SIZE`, `RETRIEVER_SCORE_THRESHOLD` 0-1, so a bad env value cannot inflate every LLM prompt or break every ingest.
 - Cap chunks per ingest via `MAX_INGEST_CHUNKS` (default 2000); over-limit uploads return HTTP 413 before any embedding call.
 - Bound the query stream collector to `MAX_STORED_RESPONSE_CHARS` so chat history buffering stays capped even when the client stream continues.
 - Verify ingest upload bytes match the declared extension (PDF `%PDF` magic; TXT UTF-8 without NUL) before writing to disk.

@@ -60,3 +60,47 @@ def test_upload_and_history_bounds_reject_zero() -> None:
         Settings(max_stored_response_chars=0)
     with pytest.raises(ValidationError):
         Settings(max_ingest_chunks=0)
+
+
+def test_retrieval_knobs_reject_out_of_range_values() -> None:
+    with pytest.raises(ValidationError):
+        Settings(retriever_k=0)
+    with pytest.raises(ValidationError):
+        Settings(retriever_k=21)
+    with pytest.raises(ValidationError):
+        Settings(chunk_size=0)
+    with pytest.raises(ValidationError):
+        Settings(chunk_size=8_001)
+    with pytest.raises(ValidationError):
+        Settings(chunk_overlap=-1)
+    with pytest.raises(ValidationError):
+        Settings(retriever_score_threshold=-0.1)
+    with pytest.raises(ValidationError):
+        Settings(retriever_score_threshold=1.5)
+
+
+def test_retrieval_knobs_accept_edge_values() -> None:
+    settings = Settings(
+        retriever_k=20,
+        chunk_size=8_000,
+        chunk_overlap=0,
+        retriever_score_threshold=1.0,
+    )
+    assert settings.retriever_k == 20
+    assert settings.chunk_size == 8_000
+    assert settings.chunk_overlap == 0
+    assert settings.retriever_score_threshold == 1.0
+
+
+def test_chunk_overlap_must_be_smaller_than_chunk_size() -> None:
+    with pytest.raises(ValidationError, match="CHUNK_OVERLAP"):
+        Settings(chunk_size=100, chunk_overlap=100)
+    with pytest.raises(ValidationError, match="CHUNK_OVERLAP"):
+        Settings(chunk_size=100, chunk_overlap=150)
+    assert Settings(chunk_size=100, chunk_overlap=99).chunk_overlap == 99
+
+
+def test_out_of_range_env_var_fails_fast(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RETRIEVER_K", "500")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)

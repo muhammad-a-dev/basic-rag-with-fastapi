@@ -98,8 +98,8 @@ cp .env.example .env
 | `LLM_MODEL_NAME` | Defaults to `groq:openai/gpt-oss-120b` |
 | `CHROMA_PERSIST_DIRECTORY` | Local vector store directory |
 | `TEMP_UPLOAD_DIR` | Temporary upload storage |
-| `CHUNK_SIZE` / `CHUNK_OVERLAP` | Chunking parameters |
-| `RETRIEVER_K` / `RETRIEVER_SCORE_THRESHOLD` | Retrieval knobs |
+| `CHUNK_SIZE` / `CHUNK_OVERLAP` | Chunking parameters (size 1-8000, overlap below size) |
+| `RETRIEVER_K` / `RETRIEVER_SCORE_THRESHOLD` | Retrieval knobs (k 1-20, threshold 0-1) |
 | `LOG_LEVEL` | Logging verbosity |
 
 Never commit `.env`.
