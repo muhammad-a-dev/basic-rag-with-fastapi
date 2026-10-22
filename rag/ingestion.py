@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from pypdf import PdfReader
 
 from rag.config import Settings, get_settings
 
@@ -50,6 +51,15 @@ def content_matches_extension(filename: str, data: bytes) -> bool:
             return False
         return True
     return False
+
+
+def pdf_page_count(file_path: str | Path) -> int:
+    """Return the number of pages in a PDF without extracting any text.
+
+    Reading the page tree is cheap compared to per-page text extraction, so
+    callers can reject very long PDFs before PyPDFLoader walks every page.
+    """
+    return len(PdfReader(str(file_path)).pages)
 
 
 def load_document(file_path: str | Path) -> list[Document]:

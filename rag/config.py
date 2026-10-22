@@ -56,6 +56,13 @@ class Settings(BaseSettings):
         alias="MAX_INGEST_CHUNKS",
         ge=1,
     )
+    # PDF text extraction runs per page before chunking, so a small file with
+    # thousands of (possibly blank) pages can still burn CPU for a long time.
+    max_pdf_pages: int = Field(
+        default=500,
+        alias="MAX_PDF_PAGES",
+        ge=1,
+    )
     max_chat_history_turns: int = Field(
         default=20,
         alias="MAX_CHAT_HISTORY_TURNS",

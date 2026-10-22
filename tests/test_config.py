@@ -37,6 +37,7 @@ def test_numeric_knobs_coerce_from_strings() -> None:
         max_chat_sessions="50",
         max_stored_response_chars="4096",
         max_ingest_chunks="250",
+        max_pdf_pages="40",
     )
     assert settings.chunk_size == 750
     assert settings.chunk_overlap == 75
@@ -47,6 +48,7 @@ def test_numeric_knobs_coerce_from_strings() -> None:
     assert settings.max_chat_sessions == 50
     assert settings.max_stored_response_chars == 4096
     assert settings.max_ingest_chunks == 250
+    assert settings.max_pdf_pages == 40
 
 
 def test_upload_and_history_bounds_reject_zero() -> None:
@@ -60,6 +62,8 @@ def test_upload_and_history_bounds_reject_zero() -> None:
         Settings(max_stored_response_chars=0)
     with pytest.raises(ValidationError):
         Settings(max_ingest_chunks=0)
+    with pytest.raises(ValidationError):
+        Settings(max_pdf_pages=0)
 
 
 def test_retrieval_knobs_reject_out_of_range_values() -> None:

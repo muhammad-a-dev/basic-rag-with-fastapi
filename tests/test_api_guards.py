@@ -180,6 +180,8 @@ def test_ingest_accepts_pdf_with_magic(
 
     monkeypatch.setattr("api.routes.load_document", fake_load)
     monkeypatch.setattr("api.routes.chunk_document", fake_chunk)
+    # Body is only a magic-byte stub, so skip the real page tree read.
+    monkeypatch.setattr("api.routes.pdf_page_count", lambda _path: 1)
     monkeypatch.setattr("api.routes.embedding_model", lambda settings=None: FakeEmbeddings())
     monkeypatch.setattr(
         "api.routes.vectorstore_initializer",
@@ -524,5 +526,87 @@ def test_ingest_accepts_chunk_count_at_limit(
         assert response.status_code == 200
         assert response.json()["chunks_stored"] == 3
         assert stored == [3]
+    finally:
+        get_settings.cache_clear()
+
+
+def _blank_pdf_bytes(pages: int) -> bytes:
+    import io
+
+    from pypdf import PdfWriter
+
+    writer = PdfWriter()
+    for _ in range(pages):
+        writer.add_blank_page(width=72, height=72)
+    buf = io.BytesIO()
+    writer.write(buf)
+    return buf.getvalue()
+
+
+def test_ingest_rejects_pdf_over_page_limit_before_extraction(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("TEMP_UPLOAD_DIR", str(tmp_path))
+    monkeypatch.setenv("MAX_PDF_PAGES", "2")
+    get_settings.cache_clear()
+
+    def fail_load(_path):
+        raise AssertionError("PDF text must not be extracted")
+
+    def fail_embed(settings=None):
+        raise AssertionError("embeddings must not be created")
+
+    monkeypatch.setattr("api.routes.load_document", fail_load)
+    monkeypatch.setattr("api.routes.embedding_model", fail_embed)
+    try:
+        client = TestClient(create_app())
+        response = client.post(
+            "/api/ingest",
+            files={"file": ("big.pdf", _blank_pdf_bytes(3), "application/pdf")},
+        )
+        assert response.status_code == 413
+        assert response.json()["detail"] == "PDF has too many pages (limit 2)."
+        assert list(tmp_path.iterdir()) == []
+    finally:
+        get_settings.cache_clear()
+
+
+def test_ingest_accepts_pdf_at_page_limit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("TEMP_UPLOAD_DIR", str(tmp_path))
+    monkeypatch.setenv("MAX_PDF_PAGES", "2")
+    get_settings.cache_clear()
+
+    loaded: list[str] = []
+
+    class FakeStore:
+        def add_documents(self, chunks):
+            pass
+
+    def fake_load(path):
+        loaded.append(str(path))
+        return [object()]
+
+    monkeypatch.setattr("api.routes.load_document", fake_load)
+    monkeypatch.setattr(
+        "api.routes.chunk_document",
+        lambda document, settings=None: [object()],
+    )
+    monkeypatch.setattr("api.routes.embedding_model", lambda settings=None: object())
+    monkeypatch.setattr(
+        "api.routes.vectorstore_initializer",
+        lambda embeddings, settings=None: FakeStore(),
+    )
+    try:
+        client = TestClient(create_app())
+        response = client.post(
+            "/api/ingest",
+            files={"file": ("ok.pdf", _blank_pdf_bytes(2), "application/pdf")},
+        )
+        assert response.status_code == 200
+        assert response.json()["chunks_stored"] == 1
+        assert len(loaded) == 1
+        assert list(tmp_path.iterdir()) == []
     finally:
         get_settings.cache_clear()

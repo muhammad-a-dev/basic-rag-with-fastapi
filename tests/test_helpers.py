@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 from langchain_core.documents import Document
+from pypdf import PdfWriter
 
 from rag.config import Settings
 from rag.ingestion import (
@@ -12,6 +13,7 @@ from rag.ingestion import (
     get_file_extension,
     is_allowed_upload,
     load_document,
+    pdf_page_count,
 )
 from rag.retriever import extract_sources, generate_augmented_prompt, normalize_source_label
 
@@ -62,6 +64,16 @@ def test_content_matches_extension_txt_rejects_non_utf8() -> None:
 
 def test_content_matches_extension_unknown_ext() -> None:
     assert content_matches_extension("blob.bin", b"%PDF-1.4") is False
+
+
+def test_pdf_page_count_reads_page_tree(tmp_path: Path) -> None:
+    writer = PdfWriter()
+    for _ in range(3):
+        writer.add_blank_page(width=72, height=72)
+    pdf = tmp_path / "three.pdf"
+    with pdf.open("wb") as fh:
+        writer.write(fh)
+    assert pdf_page_count(pdf) == 3
 
 
 def test_load_document_rejects_unsupported_extension(tmp_path: Path) -> None:

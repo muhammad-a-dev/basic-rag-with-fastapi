@@ -31,6 +31,7 @@ Uploaded documents and Chroma embeddings live under `TEMP_UPLOAD_DIR` and `CHROM
 - Ingest reads uploads in chunks and rejects payloads larger than `MAX_UPLOAD_BYTES` (default 10 MiB) as soon as the stream exceeds the cap, so oversized bodies are not fully buffered in memory.
 - Empty uploads are rejected before writing to disk.
 - After chunking, an upload that produces more than `MAX_INGEST_CHUNKS` chunks (default 2000) is rejected with HTTP 413 before any embedding request is made. A small but text-dense file can otherwise fan out into thousands of paid embedding calls and Chroma rows. The temp file is still deleted.
+- PDF uploads with more than `MAX_PDF_PAGES` pages (default 500) are rejected with HTTP 413. The page count is read from the PDF page tree before any text extraction, so a small file with thousands of pages cannot keep a worker busy inside the PDF loader. The temp file is still deleted.
 - After a bounded read, upload bytes must match the declared extension: PDF bodies must start with `%PDF`; TXT bodies must be valid UTF-8 without NUL bytes. Mismatches return HTTP 400 with a fixed message.
 - Uploaded filenames are sanitized (null bytes stripped) and truncated to limit path traversal and oversized name abuse; null-byte filenames are rejected as invalid uploads.
 - Resolved temp upload paths must stay under `TEMP_UPLOAD_DIR` (blocks symlink escapes outside the temp root).

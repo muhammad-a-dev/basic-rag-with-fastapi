@@ -100,6 +100,7 @@ cp .env.example .env
 | `TEMP_UPLOAD_DIR` | Temporary upload storage |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | Chunking parameters (size 1-8000, overlap below size) |
 | `RETRIEVER_K` / `RETRIEVER_SCORE_THRESHOLD` | Retrieval knobs (k 1-20, threshold 0-1) |
+| `MAX_PDF_PAGES` | Max pages per PDF upload (default 500; larger PDFs get HTTP 413) |
 | `LOG_LEVEL` | Logging verbosity |
 
 Never commit `.env`.

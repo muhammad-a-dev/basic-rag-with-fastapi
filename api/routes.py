@@ -17,8 +17,10 @@ from rag.ingestion import (
     chunk_document,
     content_matches_extension,
     embedding_model,
+    get_file_extension,
     is_allowed_upload,
     load_document,
+    pdf_page_count,
 )
 from rag.retriever import vectorstore_initializer
 
@@ -192,6 +194,21 @@ async def ingest(file: UploadFile = File(...)) -> IngestResponse:
         raise HTTPException(status_code=500, detail="Failed to save uploaded file.") from None
 
     try:
+        if get_file_extension(safe_name) == ".pdf":
+            page_count = pdf_page_count(file_location)
+            if page_count > settings.max_pdf_pages:
+                # Checked before text extraction so a tiny file with thousands
+                # of pages cannot tie up a worker inside PyPDFLoader.
+                logger.warning(
+                    "Rejected %s: %s pages exceeds MAX_PDF_PAGES=%s",
+                    safe_name,
+                    page_count,
+                    settings.max_pdf_pages,
+                )
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"PDF has too many pages (limit {settings.max_pdf_pages}).",
+                )
         document = load_document(file_location)
         chunks = chunk_document(document, settings=settings)
         if len(chunks) > settings.max_ingest_chunks:
